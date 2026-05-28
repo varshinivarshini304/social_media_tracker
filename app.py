@@ -68,7 +68,7 @@ st.divider()
 if 'result' not in st.session_state:
     st.session_state.result = None
 
-# ====================== GET API KEY (Fixed for Render) ======================
+# ====================== API KEY ======================
 api_key = os.getenv("DEEPSEEK_API_KEY")
 
 # ====================== SIDEBAR ======================
@@ -85,7 +85,7 @@ with st.sidebar:
         st.success("✅ DeepSeek API Connected")
     else:
         st.error("❌ DEEPSEEK_API_KEY not found!")
-        st.info("Go to Render Dashboard → Your Service → Environment → Add Variable")
+        st.info("Add it in Render → Environment Variables")
 
 # ====================== MAIN AREA ======================
 col1, col2 = st.columns([1, 1])
@@ -106,39 +106,49 @@ with col1:
                     try:
                         from openai import OpenAI
                         
+                        # Convert image to base64
                         img_bytes = io.BytesIO()
                         image.save(img_bytes, format='JPEG', quality=85)
                         img_base64 = base64.b64encode(img_bytes.getvalue()).decode()
                         
-                        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+                        client = OpenAI(
+                            api_key=api_key,
+                            base_url="https://api.deepseek.com/v1"
+                        )
                         
-                        prompt = f"""Analyze this image and return **ONLY** valid JSON:
+                        prompt = f"""Analyze this image and return **ONLY** valid JSON (no extra text or explanation):
 {{
     "sentiment": "Happy | Calm | Aesthetic | Energetic | Cozy | Nostalgic",
     "category": "scenery | food | people | pet | urban | nature | abstract | travel",
-    "caption": "Write a {style} style caption in 1-2 engaging sentences for {platform}",
+    "caption": "Write a natural {style} style caption in 1-2 engaging sentences suitable for {platform}",
     "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
 }}"""
 
                         response = client.chat.completions.create(
                             model="deepseek-chat",
-                            messages=[{
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": prompt},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
-                                ]
-                            }],
-                            temperature=0.75,
-                            max_tokens=450
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": prompt},
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}
+                                        }
+                                    ]
+                                }
+                            ],
+                            temperature=0.7,
+                            max_tokens=500
                         )
                         
                         text = response.choices[0].message.content.strip()
                         
+                        # Clean JSON
                         if "```json" in text:
-                            text = text.split("```json")[1].split("```")[0]
+                            text = text.split("```json")[1].split("```")[0].strip()
                         elif "```" in text:
-                            text = text.split("```")[1].split("```")[0]
+                            text = text.split("```")[1].split("```")[0].strip()
                         
                         result = json.loads(text)
                         
@@ -147,8 +157,8 @@ with col1:
                         full_post = f"{caption}\n\n{' '.join(hashtags)}"
                         
                         st.session_state.result = {
-                            'sentiment': result.get('sentiment'),
-                            'category': result.get('category'),
+                            'sentiment': result.get('sentiment', 'Happy'),
+                            'category': result.get('category', 'Lifestyle'),
                             'caption': caption,
                             'hashtags': hashtags,
                             'full_post': full_post
@@ -157,17 +167,21 @@ with col1:
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"Error: {str(e)[:120]}")
+                        st.error(f"DeepSeek Error: {str(e)[:100]}")
+                        st.info("Using demo mode instead...")
                         st.session_state.result = get_demo_result(style, num_hashtags)
                         st.rerun()
 
 with col2:
     st.subheader("✨ Generated Content")
+    
     if st.session_state.result:
         r = st.session_state.result
         col_a, col_b = st.columns(2)
-        with col_a: st.metric("🎭 Sentiment", r.get('sentiment', '—'))
-        with col_b: st.metric("📂 Category", r.get('category', '—'))
+        with col_a:
+            st.metric("🎭 Sentiment", r.get('sentiment', '—'))
+        with col_b:
+            st.metric("📂 Category", r.get('category', '—'))
         
         st.markdown(f'<div class="caption-card">{r["caption"]}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="hashtag-card">{" ".join(r["hashtags"])}</div>', unsafe_allow_html=True)
@@ -181,18 +195,38 @@ with col2:
             use_container_width=True
         )
     else:
-        st.info("👆 Upload image and click Generate")
+        st.info("👆 Upload an image and click Generate")
 
 st.divider()
-st.caption("Powered by DeepSeek Vision AI")
+st.caption("Powered by DeepSeek Vision AI • Hosted on Render")
 
 # ====================== DEMO FUNCTION ======================
 def get_demo_result(style, num_hashtags):
     demos = {
-        "casual": {"sentiment": "Happy", "category": "Lifestyle", "caption": "Loving this vibe! ✨ Perfect moment 🥰", "hashtags": ["#GoodVibes", "#Beautiful", "#Happy"]},
-        "aesthetic": {"sentiment": "Calm", "category": "Art", "caption": "Soft light and dreamy moments 🌸", "hashtags": ["#Aesthetic", "#Dreamy", "#Mood"]},
-        "professional": {"sentiment": "Professional", "category": "Business", "caption": "A moment captured at its finest.", "hashtags": ["#Success", "#Motivation", "#Growth"]},
-        "playful": {"sentiment": "Energetic", "category": "Fun", "caption": "OMG this is everything! 🔥😍", "hashtags": ["#Fun", "#Lit", "#Vibes"]}
+        "casual": {
+            "sentiment": "Happy",
+            "category": "Lifestyle",
+            "caption": "Loving this beautiful vibe! ✨ Such a perfect moment captured 🥰",
+            "hashtags": ["#GoodVibes", "#Beautiful", "#HappyMoments", "#LifeIsGood"]
+        },
+        "aesthetic": {
+            "sentiment": "Calm",
+            "category": "Art",
+            "caption": "Soft light, gentle moments, and dreamy vibes 🌸",
+            "hashtags": ["#Aesthetic", "#Dreamy", "#MoodyGrams", "#VisualPoetry"]
+        },
+        "professional": {
+            "sentiment": "Professional",
+            "category": "Business",
+            "caption": "A moment of excellence perfectly captured.",
+            "hashtags": ["#Success", "#Motivation", "#Growth", "#Inspiration"]
+        },
+        "playful": {
+            "sentiment": "Energetic",
+            "category": "Fun",
+            "caption": "OMG this is literally everything! 🔥 Can't stop smiling 😍",
+            "hashtags": ["#FunVibes", "#Lit", "#GoodTimes", "#PartyMood"]
+        }
     }
     result = demos.get(style, demos["casual"])
     result['hashtags'] = result['hashtags'][:num_hashtags]
