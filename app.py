@@ -364,7 +364,6 @@ Return ONLY the JSON object, no other text."""
             return analyze_emotion_lexicon(text)
     except Exception as e:
         mark_api_invalid(str(e))
-        st.warning(f"API emotion analysis failed: {str(e)}. Using local analysis.")
         return analyze_emotion_lexicon(text)
 
 # ====================== CAPTION GENERATION ======================
@@ -492,7 +491,6 @@ Caption:"""
         return caption if caption else generate_caption(emotion_data)
     except Exception as e:
         mark_api_invalid(str(e))
-        st.warning(f"API caption generation failed: {str(e)}. Using template.")
         return generate_caption(emotion_data)
 
 # ====================== HASHTAG GENERATION ======================
@@ -595,15 +593,22 @@ def process_image(uploaded_file, use_api, num_hashtags, style_override, api_key)
 def main():
     with st.sidebar:
         st.markdown("### ⚙️ Settings")
+        api_disabled = not api_key or not st.session_state.api_valid
         if not api_key:
             st.warning("⚠️ No API key found. Please set DEEPSEEK_API_KEY in environment variables or .streamlit/secrets.toml")
             st.info("💡 Get a free API key from DeepSeek to unlock AI features")
         elif not st.session_state.api_valid:
-            st.error("⚠️ DeepSeek API key is invalid or expired. Using local fallback.")
-            st.info("Update DEEPSEEK_API_KEY and reload to restore API features.")
-        use_api = st.checkbox("🤖 Use AI API", value=bool(api_key) and st.session_state.api_valid, help="Enable for AI-powered content generation (requires API key)")
-        if use_api and not api_key:
-            use_api = False
+            if st.session_state.api_error_message and 'balance' in st.session_state.api_error_message.lower():
+                st.info("⚠️ DeepSeek API is currently unavailable due to account balance. Using local fallback.")
+            else:
+                st.info("⚠️ DeepSeek API key is invalid or expired. Using local fallback.")
+            st.info("Update DEEPSEEK_API_KEY or balance and reload to restore API features.")
+        use_api = st.checkbox(
+            "🤖 Use AI API",
+            value=bool(api_key) and st.session_state.api_valid,
+            help="Enable for AI-powered content generation (requires API key)",
+            disabled=api_disabled
+        )
         style_override = st.selectbox(
             "🎨 Content Style",
             ["casual", "aesthetic", "professional", "playful"],
